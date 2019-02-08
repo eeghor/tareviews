@@ -693,25 +693,26 @@ class Tareviews:
         except:
             print('didnt click infotext!')
         
-        ds = WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'ul.memberdescriptionReviewEnhancements')))
-        t_ = ds.text
-#         t_ = self.driver.find_element_by_css_selector('ul.memberdescriptionReviewEnhancements').text
-        
         try:
+            t_ = WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'ul.memberdescriptionReviewEnhancements'))).text
             user.age = re.search(r'\d+\-\d+', t_).group(0)
+            user.gender ='f' if 'woman' in t_ else 'm' if 'man' in t_ else None
         except:
-            print('can\'t find user age!')
-        
-        user.gender ='f' if 'woman' in t_ else 'm' if 'man' in t_ else None
+#             print('can\'t find lines with user details. skipping searching for age and gender')
+            pass
         
         try:
             user.tags = [t.text.strip().lower() for t in self.driver.find_elements_by_css_selector('a.memberTagReviewEnhancements')]
         except:
-            print('can\'t find user tags')
+            pass
         
-        print('trying to close the user info window..')
-        self.driver.find_element_by_css_selector('body>span>div.ui_close_x').click()
-        time.sleep(random.choice(range(1,4)))
+        try:
+            
+            WebDriverWait(self.driver, 20)                 .until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'body>span>div.ui_close_x')))                 .click()
+            time.sleep(random.choice(range(2,5)))
+            
+        except:
+            print('can\'t close the customer info pop-up!')
         
         return user
     
@@ -817,8 +818,18 @@ class Tareviews:
             # close the window with full description
             self.driver.find_element_by_xpath('.//div[contains(@class, "overlays-pieces-CloseX__close--")]').click()
         except:
-            # if description is short, just pick it up
+            pass
+        
+        # if description is short, just pick it up
+        try:
             about = self.driver.find_element_by_xpath('.//div[contains(@class, "attractions-attraction-detail-about-card-AttractionDetailAboutCard__section--") and not(contains(@class, "title"))]').text
+        except:
+            pass
+        
+        try:
+            about = self.driver.find_element_by_css_selector('div[class^="attractions-supplier-profile-SupplierAbout__about--"]').text
+        except:
+            pass
         
         attraction.about = about
         
@@ -857,6 +868,12 @@ class Tareviews:
         for all available attractions, visit attraction page and collect all reviews and user information
         """
         
+        # select reviews in all languages
+        try:
+            WebDriverWait(self.driver, 20)                 .EC.visibility_of_element_located((By.CSS_SELECTOR, 'div[data-param="filterLang"]>div[data-value="ALL"]'))                 .click()
+        except:
+            print('can\'t select review language option!')
+        
         rev_ids = set()
         usr_ids = set()
         
@@ -873,6 +890,10 @@ class Tareviews:
             # if there are some reviews, visit the attraction page
             self.driver.get(a.attr_url)
             
+            # look at the attraction ranking tagline
+            ranking_tag = self.driver.find_element_by_css_selector('span.header_popularity.popIndexValidation').text.strip()
+            print(ranking_tag)
+            
             cids = set()  # collected review ids
             
             while len(cids) < a.reviews: 
@@ -885,6 +906,8 @@ class Tareviews:
                     continue
                     
                 rev_block_done = False 
+                
+                c_url = self.driver.current_url
                     
                 while not rev_block_done:
                    
@@ -894,13 +917,10 @@ class Tareviews:
                             try:
                                 rev = self.get_review(rev_container)
                             except:
-                                print('didnt get review!')
+                                print('didn\'t get review! reloading the page')
                                 raise Exception()
                             
-                            try:
-                                rev.attr_id = a.attr_id
-                            except:
-                                print('didnt assign attraction id to review!')
+                            rev.attr_id = a.attr_id
                             
                             try:
                                 user = self.get_user_details(rev_container)
@@ -908,10 +928,7 @@ class Tareviews:
                                 print('didnt get user!')
                                 raise Exception()
                             
-                            try:
-                                rev.by_user = user.name
-                            except:
-                                print('didnt assign by_user to review!')
+                            rev.by_user = user.name
                             
                             try:
                                 user.attr_ids.append(a.attr_id)
@@ -929,13 +946,21 @@ class Tareviews:
                             cids.add(rev.review_id)
                
                             if len(cids)%20 == 0:
-                                print(f'done {len(cids)}/{a.reviews} reviews...')
+                                print(f'{len(cids)}/{a.reviews} reviews...')
                                 self.save(what=['users', 'reviews'])
                    
                         rev_block_done = True
 
                     except:
-                        print('couldnt finish the review block!')
+                        print('couldnt finish the review block! reloading page...')
+                        
+                        self.driver.get(c_url)
+                        try:
+                            review_containers = WebDriverWait(self.driver, 20).until(EC.visibility_of_all_elements_located((By.CSS_SELECTOR, 'div.review-container')))
+                            print(f'found {len(review_containers)} review containers')
+                        except:
+                            print('no review containers found!')
+                            continue
                    
                 pagination_found = False
                
@@ -949,11 +974,14 @@ class Tareviews:
                 
                 # on the very last page buttons previous and next are visible but the next button is disabled (not ckickable)
                 if 'disabled' not in next_button.get_attribute('class'):
+                    
                     next_button.click()
                     sc = random.choice(range(3,7))
                     print(f'clicked NEXT. waiting {sc} seconds...')
                     time.sleep(sc)
+                    
                 else:
+                    
                     print(f'last page. collected {len(cids)}/{a.reviews} reviews')
                     if (len(cids) < a.reviews):
                         print('although collected fewer reviews than expected, moving on to next attraction')
@@ -985,6 +1013,7 @@ class Tareviews:
 if __name__ == '__main__':
     
     ta = Tareviews(headless=True) \
-        .get_attrs_info('https://www.tripadvisor.com.au/Attractions-g255066-Activities-Darwin_Top_End_Northern_Territory.html') \
-        .get_attrs_about_and_address().get_users_and_reviews()
+        .get_attrs_info('https://www.tripadvisor.com.au/Attractions-g255060-Activities-Sydney_New_South_Wales.html') \
+        .get_attrs_about_and_address() \
+        .get_users_and_reviews()
 
