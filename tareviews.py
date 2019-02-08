@@ -822,12 +822,12 @@ class Tareviews:
         
         # if description is short, just pick it up
         try:
-            about = self.driver.find_element_by_xpath('.//div[contains(@class, "attractions-attraction-detail-about-card-AttractionDetailAboutCard__section--") and not(contains(@class, "title"))]').text
+            about = self.driver.find_element_by_xpath('//div[contains(@class, "attractions-attraction-detail-about-card-AttractionDetailAboutCard__section--") and not(contains(@class, "title"))]').text
         except:
             pass
         
         try:
-            about = self.driver.find_element_by_css_selector('div[class^="attractions-supplier-profile-SupplierAbout__about--"]').text
+            about = self.driver.find_element_by_xpath('//div[contains(@class, "attractions-supplier-profile-SupplierAbout__about--")]').text
         except:
             pass
         
