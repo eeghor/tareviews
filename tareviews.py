@@ -300,13 +300,21 @@ class User:
             
 class Tareviews:
     
-    def __init__(self, headless=False, max_ranking=30):
+    def __init__(self, headless=False):
+        
+        """
+        note: because there doesn't seem to be a working way to get rid of the annoying "allow location" notifications
+        in Chrome at the moment, we don't implement the tart when you search for a location forst and then go to the things-to-do 
+        page. Instead, as a temporary somlutions, we hardcode a number of the things-to-do page urls to choose from. 
+        """
         
         options = webdriver.ChromeOptions()
         options.add_argument('--ignore-certificate-errors')
         options.add_argument('--ignore-ssl-errors')
         options.add_argument('--incognito')
         options.add_argument('--start-maximized')
+        prefs = {"profile.default_content_setting_values.notifications" : 2}
+        options.add_experimental_option("prefs",prefs)
         
         if headless:
             options.add_argument('--headless')
@@ -317,6 +325,15 @@ class Tareviews:
             self.attraction_ids = set()
         
         print(f'available attraction ids: {len(self.attraction_ids)}')
+        
+        self.locations = {'sydney': 'https://www.tripadvisor.com.au/Attractions-g255060-Activities-Sydney_New_South_Wales.html',
+                         'melbourne': 'https://www.tripadvisor.com.au/Attractions-g255100-Activities-Melbourne_Victoria.html',
+                         'perth': 'https://www.tripadvisor.com.au/Attractions-g255103-Activities-Perth_Greater_Perth_Western_Australia.html',
+                         'brisbane': 'https://www.tripadvisor.com.au/Attractions-g255068-Activities-Brisbane_Brisbane_Region_Queensland.html',
+                         'adelaide': 'https://www.tripadvisor.com.au/Attractions-g255093-Activities-Adelaide_Greater_Adelaide_South_Australia.html',
+                         'hobart': 'https://www.tripadvisor.com.au/Attractions-g255097-Activities-Hobart_Greater_Hobart_Tasmania.html',
+                         'darwin': 'https://www.tripadvisor.com.au/Attractions-g255066-Activities-Darwin_Top_End_Northern_Territory.html',
+                         'canberra': 'https://www.tripadvisor.com.au/Attractions-g255057-Activities-Canberra_Australian_Capital_Territory.html'}
         
         self.attractions = []
         self.reviews = []
@@ -337,6 +354,7 @@ class Tareviews:
         print(f'available reviews: {len(self.review_ids)}')
 
         self.driver = webdriver.Chrome('webdriver/chromedriver', options=options)
+        
         
     def get_attr_info(self, attr_item):
         
@@ -414,13 +432,19 @@ class Tareviews:
             
         return attraction
     
-    def get_attrs_info(self, url):
+    def get_attrs_info(self, location):
         
         """
         collect basic arttraction information FOR ALL ATTRACTIONS from the attraction list
         """
         
-        self.driver.get(url)
+        self.location = location.lower().strip()
+        
+        if not self.location in self.locations:
+            print(f'your location ({location}) is not supported!')
+            raise Exception()
+        
+        self.driver.get(self.locations[self.location])
         
         pref = 'attractions-attraction-overview-main-TopPOIs__'
         
@@ -797,12 +821,12 @@ class Tareviews:
             # text is like 7,260 Reviews
             number_reviews = int(re.search(r'\d+\,*\d*\s+(?=Review)', self.driver.find_element_by_css_selector('div.ratingContainer>a>span.reviewCount').text).group(0).replace(',','').strip())
         except:
-            print(f'can\'t find the number of reviews for attraction id {attraction.attr_id}!')
+            print(f'can\'t find the number of reviews for {attraction.name}!')
         
         if number_reviews > attraction.reviews:
-            print(f'warning: number of reviews for attraction {attraction.attr_id} increased to {number_reviews} (was {attraction.reviews})!')
+            print(f'warning: number of reviews for {attraction.name} increased to {number_reviews} (was {attraction.reviews})!')
         elif number_reviews < attraction.reviews:
-            print(f'warning: number of reviews for attraction {attraction.attr_id} decreased to {number_reviews} (was {attraction.reviews})!')
+            print(f'warning: number of reviews for {attraction.name} decreased to {number_reviews} (was {attraction.reviews})!')
        
         attraction.reviews = number_reviews 
          
@@ -819,6 +843,8 @@ class Tareviews:
             self.driver.find_element_by_xpath('.//div[contains(@class, "overlays-pieces-CloseX__close--")]').click()
         except:
             pass
+        
+        about = ''
         
         # if description is short, just pick it up
         try:
@@ -877,10 +903,16 @@ class Tareviews:
         rev_ids = set()
         usr_ids = set()
         
+        t0 = time.time()
+        
         for i, a in enumerate(self.attractions, 1):
             
             if (i == 1) or (i%20==0):
-                print(f'attraction {i}/{len(self.attractions)}..')
+                
+                m, s = divmod(time.time() - t0, 60)
+                h, m = divmod(m, 60)
+                
+                print(f'#{i}/{len(self.attractions)}: {a.name} [elapsed time: {h:02.0f} h {m:02.0f} m {s:02.0f} s]')
             
             # if no reviews are available, move on to next attraction
             if not a.reviews:
@@ -892,7 +924,6 @@ class Tareviews:
             
             # look at the attraction ranking tagline
             ranking_tag = self.driver.find_element_by_css_selector('span.header_popularity.popIndexValidation').text.strip()
-            print(ranking_tag)
             
             cids = set()  # collected review ids
             
@@ -900,7 +931,7 @@ class Tareviews:
                     
                 try:
                     review_containers = WebDriverWait(self.driver, 20).until(EC.visibility_of_all_elements_located((By.CSS_SELECTOR, 'div.review-container')))
-                    print(f'found {len(review_containers)} review containers')
+#                     print(f'found {len(review_containers)} review containers')
                 except:
                     print('no review containers found!')
                     continue
@@ -993,15 +1024,16 @@ class Tareviews:
     
     def save(self, what):
         
+        
         if not os.path.exists('data'):
             os.mkdir('data')
         
         if ('attractions' in what) and self.attractions:
-            json.dump([a.to_dict() for a in self.attractions], open(os.path.join('data', 'attractions.json'), 'w'))
+            json.dump([a.to_dict() for a in self.attractions], open(os.path.join('data', f'attractions_{self.location}.json'), 'w'))
         if ('users' in what) and self.users:
-            json.dump([u.to_dict() for u in self.users], open(os.path.join('data', 'users.json'), 'w'))
+            json.dump([u.to_dict() for u in self.users], open(os.path.join('data', f'users_{self.location}.json'), 'w'))
         if ('reviews' in what) and self.reviews:
-            json.dump([r.to_dict() for r in self.reviews], open(os.path.join('data', 'reviews.json'), 'w'))
+            json.dump([r.to_dict() for r in self.reviews], open(os.path.join('data', f'reviews_{self.location}.json'), 'w'))
         
         return self
         
@@ -1013,7 +1045,7 @@ class Tareviews:
 if __name__ == '__main__':
     
     ta = Tareviews(headless=True) \
-        .get_attrs_info('https://www.tripadvisor.com.au/Attractions-g255060-Activities-Sydney_New_South_Wales.html') \
+        .get_attrs_info(location='Brisbane') \
         .get_attrs_about_and_address() \
         .get_users_and_reviews()
 
