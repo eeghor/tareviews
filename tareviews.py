@@ -799,8 +799,12 @@ class Tareviews:
         except:
             print(f'can\'t get attraction url {attraction.attr_url}')
             return attraction
-        
-        reviews_block = WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, 'REVIEWS')))
+
+        try:
+            reviews_block = WebDriverWait(self.driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div#REVIEWS')))
+        except:
+            print('no reviews block! reloading..')
+            self.driver.get(attraction.attr_url)
         
         try:
             self.driver.find_element_by_css_selector('span>div>span.viewMore').click()
@@ -1045,7 +1049,7 @@ class Tareviews:
 if __name__ == '__main__':
     
     ta = Tareviews(headless=True) \
-        .get_attrs_info(location='Brisbane') \
+        .get_attrs_info(location='Sydney') \
         .get_attrs_about_and_address() \
         .get_users_and_reviews()
 
