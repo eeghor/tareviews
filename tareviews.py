@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[13]:
+# In[7]:
 
 
 from selenium import webdriver
@@ -20,7 +20,7 @@ import arrow
 import random
 
 
-# In[14]:
+# In[8]:
 
 
 class Attraction:
@@ -322,6 +322,7 @@ class Tareviews:
         self.users = []
         
         self.attraction_ids = set()
+        self.review_ids = set()
 
         self.driver = webdriver.Chrome('webdriver/chromedriver', options=options)
         self.WAIT_SEC = 20
@@ -415,7 +416,17 @@ class Tareviews:
         if not self.location in self.locations:
             print(f'your location ({location}) is not supported!')
             raise Exception()
+            
+        self.ATR_FILE = os.path.join('data', f'attractions_{self.location}.json')
+        self.USR_FILE = os.path.join('data', f'users_{self.location}.json')
+        self.REV_FILE = os.path.join('data', f'attractions_{self.location}.json')
         
+        try:
+            self.review_ids = {r['id'] for r in json.load(open(self.REV_FILE))}
+            print(f'found {len(self.review_ids)} reviews for {self.location} stored locally')
+        except:
+            print(f'found no reviews for {self.location} stored locally')
+            
         print(f'collecting basic attraction information for {self.location.upper()}')
         
         self.driver.get(self.locations[self.location])
@@ -478,7 +489,7 @@ class Tareviews:
                 previous_button, selected_button, next_button, last_page = self.pagination_on_attraction_list_pages(pagination_wrapper, is_top=is_top)
                     
                 next_button.click()
-                time.sleep(random.choice(range(1,4)))
+                time.sleep(random.choice(range(1,5)))
                 
                 is_top = False
                 
@@ -612,45 +623,34 @@ class Tareviews:
         
         previous_button = selected_button = last_page = next_button = None
         
-        while not all([previous_button, selected_button, last_page, next_button or (selected_button == last_page)]):
+        # run until all buttons get some value
+        while not all([previous_button, selected_button, last_page, next_button]):
         
-            # previous button
-            
+            # previous button: find the very first one from the top; supposed to be an element
             try:
-                for _ in self.driver.find_elements_by_xpath('//a[contains(@class, "previous") and contains(@class, "nav")]'):
-                    _text = _.text.lower().strip()
-                    if _text == 'previous':
-                        previous_button = _ 
-                        break
+                previous_button = self.driver.find_element_by_css_selector('div.unified.ui_pagination>a.nav.previous.ui_button.secondary')
             except:
-                print('no PREVIOUS')
+                print('review pagination: no PREVIOUS button found!')
                     
-            # selected button
+            # selected button, element
             try:
-                for _ in self.driver.find_elements_by_xpath('//a[contains(@class, "current") and contains(@class, "pageNum")]'):
-                    _text = _.text.lower().strip()
-                    if _text.isdigit():
-                        selected_button = int(_text)
-                        break
+                selected_button = self.driver.find_element_by_css_selector('div.pageNumbers>a.pageNum.current')
             except:
-                print('no SELECTED')
+                print('review pagination: no SELECTED button found')
                     
-            # last page button
-            
+            # last page; integer number
+            ns = [t.get_attribute('data-page-number')
+                      for t in self.driver.find_elements_by_css_selector('div.mobile-more>div>div.unified.ui_pagination>div.pageNumbers>a[data-page-number]')]
             try:
-                last_page = max([int(t.text) for t in self.driver.find_elements_by_xpath('//a[@data-page-number]') if t.text.isdigit()])
+                last_page = max([int(s) for s in ns])
             except:
-                print('no LAST PAGE')
+                print('review pagination: no LAST PAGE NUMBER found')
             
-            # next button
-            
+            # next button; element  
             try:
-                for _a in self.driver.find_elements_by_xpath('//a[contains(@class, "next") and contains(@class, "nav")]'):
-                    if _a and _a.text.strip().lower() == 'next':
-                        next_button = _a
-                        break
+                next_button = self.driver.find_element_by_css_selector('div.unified.ui_pagination>a.nav.next.taLnk.ui_button.primary')
             except:
-                print('no NEXT')
+                print('review pagination: no NEXT button found!')
         
         return (previous_button, selected_button, next_button, last_page)
     
@@ -862,7 +862,7 @@ class Tareviews:
             print(f'{i+1}/{total_attrs}...')
             
             if (i+1) % 10 == 0:
-                print(f'time: {m:02f.0} min {s:02.1f} sec')
+                print(f'time: {m:02.0f} min {s:02.0f} sec')
             
         self.attractions = attractions_
         
@@ -875,12 +875,6 @@ class Tareviews:
         """
         for all available attractions, visit attraction page and collect all reviews and user information
         """
-        
-        # select reviews in all languages
-        try:
-            WebDriverWait(self.driver, self.WAIT_SEC)                 .EC.visibility_of_element_located((By.CSS_SELECTOR, 'div[data-param="filterLang"]>div[data-value="ALL"]'))                 .click()
-        except:
-            print('can\'t select review language option!')
         
         rev_ids = set()
         usr_ids = set()
@@ -905,6 +899,19 @@ class Tareviews:
             
             # if there are some reviews, visit the attraction page
             self.driver.get(a.attr_url)
+            
+            
+            # select reviews in all languages
+            label_all_languages = None
+            try:
+                label_all_languages = WebDriverWait(self.driver, self.WAIT_SEC)                 .EC.presence_of_element_located((By.CSS_SELECTOR, 'input#filters_detail_language_filterLang_ALL'))
+            except:
+                print('no label all languages found!')
+            
+            try:
+                label_all_languages.click()
+            except:
+                print('can\'t select all languages in the review language option!')
             
             # look at the attraction ranking tagline
             ranking_tag = self.driver.find_element_by_css_selector('span.header_popularity.popIndexValidation').text.strip()
@@ -1015,17 +1022,17 @@ class Tareviews:
         if ('reviews' in what) and self.reviews:
             json.dump([r.to_dict() for r in self.reviews], open(os.path.join('data', f'reviews_{self.location}.json'), 'w'))
         
-        return self
+        return self 
         
 
 
-# In[15]:
+# In[9]:
 
 
 if __name__ == '__main__':
     
-    ta = Tareviews(headless=True, save_every=30) \
-    	.get_attrs_info(location='Brisbane') \
-    	.get_attrs_about_and_address() \
-    	.get_users_and_reviews()
+    ta = Tareviews(save_every=30) \
+            .get_attrs_info(location='Melbourne') \
+            .get_attrs_about_and_address() \
+            .get_users_and_reviews()
 
