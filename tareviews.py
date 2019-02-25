@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[7]:
+# In[ ]:
 
 
 from selenium import webdriver
@@ -20,7 +20,7 @@ import arrow
 import random
 
 
-# In[8]:
+# In[ ]:
 
 
 class Attraction:
@@ -127,6 +127,20 @@ class Attraction:
                 'rating': self.rating_,
                 'cat': self.cat_,
                 'id': self.id_}
+    
+    def from_dict(self, dict_):
+        
+        self.name = dict_['name']
+        self.about = dict_['about']
+        self.attr_url = dict_['attr_url']
+        self.rank = dict_['rank']
+        self.address = dict_['address']
+        self.reviews = dict_['reviews']
+        self.rating = dict_['rating']
+        self.cat = dict_['cat']
+        self.id = dict_['id']
+        
+        return self
         
 class Review:
     
@@ -222,6 +236,20 @@ class Review:
                'rating': self.rating_,
                'date_of_experience': self.date_of_experience_,
                'date_of_writing': self.date_of_writing_}
+    
+    def from_dict(self, dict_):
+        
+        self.review_id = dict_['review_id']
+        self.attr_id = dict_['attr_id']
+        self.title = dict_['title']
+        self.text = dict_['text']
+        self.by_user = dict_['by_user']
+        self.by_user = dict_['by_user']
+        self.rating = dict_['rating']
+        self.date_of_experience = dict_['date_of_experience']
+        self.date_of_writing = dict_['date_of_writing']
+        
+        return self
             
 class User:
     
@@ -286,6 +314,16 @@ class User:
                'location': self.loc_,
                'tags': self.tags_}
     
+    def from_dict(self, dict_):
+        
+        self.name = dict_['name']
+        self.age = dict_['age']
+        self.gender = dict_['gender']
+        self.location = dict_['location']
+        self.tags = dict_['tags']
+        
+        return self
+    
             
 class Tareviews:
     
@@ -326,6 +364,7 @@ class Tareviews:
 
         self.driver = webdriver.Chrome('webdriver/chromedriver', options=options)
         self.WAIT_SEC = 20
+        self.WAIT_SEC_SHORT = 8
         
         self.save_every = save_every
         
@@ -335,6 +374,10 @@ class Tareviews:
         collects basic attraction information for A SINGLE ATTRACTION from the attraction list (NOT on individual attraction pages!)
         handles both the top ranked and normal attractions
         returns an instance of the Attraction class 
+        
+        note: the number of reviews on the top attraction list is not always the same as on the individual attraction pages (for whatever reason)!
+               - we trust the number on the attraction page more
+               - so, no need to collect the number of reviews on the top attraction list
         """
         
         attraction = Attraction()
@@ -350,10 +393,6 @@ class Tareviews:
         if attraction.rank:
      
             info = attr_item.find_element_by_xpath(f'.//div[contains(@class, "{pref}info--")]')
-
-#             for tag in info.find_elements_by_xpath('.//span[contains(@class, "attractions-commerce-CategoryTag__category_tag--")]'):
-#                 if tag.text.strip():
-#                     attraction.cat = tag.text.lower().strip()
           
             try:
                 a_with_name = info.find_element_by_xpath(f'.//a[contains(@class, "{pref}name--")]')
@@ -363,20 +402,20 @@ class Tareviews:
             except:
                 pass
           
-            try:
-                attraction.reviews = int(re.search(r'\d+\,*\d*', info.find_element_by_xpath('.//span[contains(@class, "reviewCount")]').text).group(0).replace(',',''))
-            except:
-                attraction.reviews = 0
+#             try:
+#                 attraction.reviews = int(re.search(r'\d+\,*\d*', info.find_element_by_xpath('.//span[contains(@class, "reviewCount")]').text).group(0).replace(',',''))
+#             except:
+#                 attraction.reviews = 0
             
-            if attraction.reviews:
+#             if attraction.reviews:
                 
-                try:
-                    rating_span = info.find_element_by_xpath('.//span[contains(@class, "ui_bubble_rating")]')
-                    attraction.rating = int(re.search(r'(?<=bubble_)\d+', rating_span.get_attribute('class')).group(0))/10
-                except:
-                    pass
-            else:
-                attraction.rating = 0
+#                 try:
+#                     rating_span = info.find_element_by_xpath('.//span[contains(@class, "ui_bubble_rating")]')
+#                     attraction.rating = int(re.search(r'(?<=bubble_)\d+', rating_span.get_attribute('class')).group(0))/10
+#                 except:
+#                     pass
+#             else:
+#                 attraction.rating = 0
             
         else:
             
@@ -394,40 +433,64 @@ class Tareviews:
             except:
                 pass
         
-            try:
-                rating_div = attr_item.find_element_by_xpath('.//div[@class="listing_rating"]')
-                review_counts = rating_div.text.strip().lower()
-                attraction.reviews = int(re.search(r'\d+\,*\d*', review_counts).group(0).replace(',',''))
-                rating_span = rating_div.find_element_by_xpath('.//span[contains(@class, "ui_bubble_rating")]')
-                attraction.rating = int(re.search(r'(?<=bubble_)\d+', rating_span.get_attribute('class')).group(0))/10
-            except:
-                pass
+#             try:
+#                 rating_div = attr_item.find_element_by_xpath('.//div[@class="listing_rating"]')
+#                 review_counts = rating_div.text.strip().lower()
+#                 attraction.reviews = int(re.search(r'\d+\,*\d*', review_counts).group(0).replace(',',''))
+#                 rating_span = rating_div.find_element_by_xpath('.//span[contains(@class, "ui_bubble_rating")]')
+#                 attraction.rating = int(re.search(r'(?<=bubble_)\d+', rating_span.get_attribute('class')).group(0))/10
+#             except:
+#                 pass
             
         return attraction
     
-    def get_attrs_info(self, location):
+    def get_attrs_info(self, location, use_local=False):
         
         """
-        collect basic arttraction information FOR ALL ATTRACTIONS from the attraction list
+        collect basic attraction information FOR ALL ATTRACTIONS from the attraction list
         """
         
         self.location = location.lower().strip()
         
         if not self.location in self.locations:
-            print(f'your location ({location}) is not supported!')
-            raise Exception()
+            raise Exception(f'your location ({location}) is not supported!')
             
         self.ATR_FILE = os.path.join('data', f'attractions_{self.location}.json')
         self.USR_FILE = os.path.join('data', f'users_{self.location}.json')
-        self.REV_FILE = os.path.join('data', f'attractions_{self.location}.json')
+        self.REV_FILE = os.path.join('data', f'reviews_{self.location}.json')
         
-        try:
-            self.review_ids = {r['id'] for r in json.load(open(self.REV_FILE))}
-            print(f'found {len(self.review_ids)} reviews for {self.location} stored locally')
-        except:
-            print(f'found no reviews for {self.location} stored locally')
+        if use_local:
             
-        print(f'collecting basic attraction information for {self.location.upper()}')
+            # check for a local attraction file
+            try:
+                self.attractions = [Attraction().from_dict(a) for a in json.load(open(self.ATR_FILE))] 
+                self.attraction_ids = {r.attr_id for r in self.attractions}
+                print(f'found {len(self.attraction_ids)} attractions stored locally')
+            except:
+                print('no locally stored attractions!')
+                
+            # check for a local review file
+            try:
+                self.reviews = [Review().from_dict(r) for r in json.load(open(self.REV_FILE))]
+                self.review_ids = {r.review_id for r in self.reviews}
+                print(f'found {len(self.review_ids)} reviews stored locally')
+            except:
+                print('no locally stored reviews!')
+                
+            # check for a local user file
+            try:
+                self.users = [User().from_dict(r) for r in json.load(open(self.USR_FILE))]
+                self.user_ids = {r.name for r in self.users}
+                print(f'found {len(self.user_ids)} user names stored locally')
+            except:
+                print('no locally stored users!')
+            
+            if len(self.attractions) > 0:
+                return self
+            
+        print(f'attractions: {len(self.attractions)}, reviews: {len(self.reviews)}, users: {len(self.users)}')
+            
+        print(f'starting to collect attraction information from attraction list for {self.location.upper()}')
         
         self.driver.get(self.locations[self.location])
         
@@ -528,6 +591,29 @@ class Tareviews:
                     keep_going = False
         
         print(f'done. found {len(self.attractions)} attractions')
+        
+        total_attrs = len(self.attractions)
+        
+#         digs = len(str(total_attrs))
+        
+        print(f'looking for additional attraction information...')
+        
+        attractions_ = []
+        
+        t0 = time.time()
+        
+        for i, a in enumerate(self.attractions, 1):
+                
+            a = self.get_attr_about_and_address(a)
+            attractions_.append(a)
+            
+            m, s = divmod(time.time() - t0, 60)
+            
+            print(f'{i}/{total_attrs} ({100*i/total_attrs:03.1f}%) done. elapsed time: {m:02.0f} min {s:02.0f} sec')
+            
+        self.attractions = attractions_
+        
+        self.save(what=['attractions'])
         
         return self
     
@@ -681,7 +767,7 @@ class Tareviews:
         try:
             info_text.click()
         
-            time.sleep(random.choice(range(2,5)))
+            time.sleep(random.choice(range(3,6)))
         except:
             print('didnt click infotext!')
         
@@ -762,12 +848,14 @@ class Tareviews:
         - some attractions have NO REVIEWS
         """
         
+        print(f'attraction: {attraction.name}...')
+        
         try:
             self.driver.get(attraction.attr_url)
         except:
             print(f'can\'t get attraction url {attraction.attr_url}')
             return attraction
-        
+
         try:
             reviews_block = WebDriverWait(self.driver, self.WAIT_SEC).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div#REVIEWS')))
         except:
@@ -780,36 +868,48 @@ class Tareviews:
         except:
             pass
         
-        # category tags
-        try:
-            cat_span = self.driver.find_element_by_xpath('//span[contains(@class, "header_detail") and contains(@class, "attractionCategories")]')
-            attraction.cat = [c.lower().strip() for c in cat_span.text.split(',')]
-        except:
-            print('can\'t find attraction categories!')   
-        
-        number_reviews = 0
+        category_span = None
         
         try:
-            # text is like 7,260 Reviews or 220 Reviews
-            number_reviews = int(re.search(r'\d+(?=\s+Review)', 
-                                           self.driver.find_element_by_css_selector('div.ratingContainer>a>span.reviewCount').text.replace(',','')).group(0))
+            category_span = WebDriverWait(self.driver, self.WAIT_SEC)                                 .until(EC.visibility_of_element_located((By.CSS_SELECTOR, 
+                                                                         'span.is-hidden-mobile.header_detail.attractionCategories>div.detail')))
+
         except:
-            print(f'can\'t find the number of reviews for {attraction.name}!')
-        
-        if number_reviews > attraction.reviews:
-            print(f'warning: number of reviews for {attraction.name} increased to {number_reviews} (was {attraction.reviews})!')
-        elif number_reviews < attraction.reviews:
-            print(f'warning: number of reviews for {attraction.name} decreased to {number_reviews} (was {attraction.reviews})!')
-       
-        attraction.reviews = number_reviews 
-         
-        try:
-            attraction.address = self.driver.find_element_by_css_selector('div.contactInfo>div.detail_section.address').text.lower().strip()
-        except:
+            print(f'no category span found for {attraction.name}!')
+            
+        if category_span:
+            
             try:
-                attraction.address = self.driver.find_element_by_xpath('//span[@class="detail"]').text.lower().strip()
+                attraction.cat = [c.lower().strip() for c in category_span.text.split(',')]
             except:
-                print(f'can\'t find address for attraction {attraction.name}!')
+                print(f'can\'t extract attraction categories from {category_span.text}!')  
+        
+        attraction.reviews = 0
+        
+        review_count_span = None
+        
+        try:
+            review_count_span = WebDriverWait(self.driver, self.WAIT_SEC_SHORT)                                     .until(EC.visibility_of_element_located((By.CSS_SELECTOR, 
+                                                                             'div.headerInfoWrapper>div.ratingContainer>a>span.reviewCount')))
+        except:
+            print(f'can\'t find the review count span for {attraction.name}')
+        
+        if review_count_span:
+            try:
+                # text is like 7,260 Reviews or 220 Reviews; 377 Reviews
+                attraction.reviews = int(re.search(r'\d+(?=\s+Review)', review_count_span.text.replace(',','')).group(0))
+            except:
+                print(f'problem with extracting review count from {review_count_span.text.upper()} for {attraction.name}!')
+                                           
+        try:
+            attraction.rating = float(self.driver.find_element_by_css_selector('div.section.rating>span.overallRating').text.strip())
+        except:
+            if attraction.reviews:
+                print(f'can\'t find rating for {attraction.name} although it has {attraction.reviews} reviews!')                      
+        try:
+            attraction.address = WebDriverWait(self.driver, self.WAIT_SEC_SHORT)                         .until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.contactInfo>div.detail_section.address'))).text
+        except:                   
+            print(f'can\'t find the address section for {attraction.name}')
             
         try:
             # if theres an option to extend description via clicking More, do it
@@ -846,23 +946,22 @@ class Tareviews:
         
         total_attrs = len(self.attractions)
         
+#         digs = len(str(total_attrs))
+        
         print(f'looking for additional attraction information...')
         
         attractions_ = []
         
         t0 = time.time()
         
-        for i, a in enumerate(self.attractions):
+        for i, a in enumerate(self.attractions, 1):
                 
             a = self.get_attr_about_and_address(a)
             attractions_.append(a)
             
             m, s = divmod(time.time() - t0, 60)
             
-            print(f'{i+1}/{total_attrs}...')
-            
-            if (i+1) % 10 == 0:
-                print(f'time: {m:02.0f} min {s:02.0f} sec')
+            print(f'{i}/{total_attrs} ({100*i/total_attrs:03.1f}%) done. elapsed time: {m:02.0f} min {s:02.0f} sec')
             
         self.attractions = attractions_
         
@@ -884,6 +983,10 @@ class Tareviews:
         for i, a in enumerate(self.attractions, 1):
             
             print(f'#{i}/{len(self.attractions)}: {a.name.upper()}...')
+            
+            if a.attr_id in ['d654640', 'd256584', 'd256558', 'd10062913', 'd522372', 'd522360']:
+                print(f'skipping {a.name}...')
+                continue
                   
             if i > 1:
                 
@@ -898,20 +1001,30 @@ class Tareviews:
                 continue
             
             # if there are some reviews, visit the attraction page
-            self.driver.get(a.attr_url)
+            self.driver.get(a.attr_url)    
             
-            
-            # select reviews in all languages
-            label_all_languages = None
+            # select English reviews only
+            radio_en = None
             try:
-                label_all_languages = WebDriverWait(self.driver, self.WAIT_SEC)                 .EC.presence_of_element_located((By.CSS_SELECTOR, 'input#filters_detail_language_filterLang_ALL'))
+                radio_en = WebDriverWait(self.driver, 15)                     .until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'div.ui_radio.item[data-value="en"][data-tracker="English"]')))
             except:
-                print('no label all languages found!')
-            
-            try:
-                label_all_languages.click()
-            except:
-                print('can\'t select all languages in the review language option!')
+                print('can\'t find the English radio button!')
+                
+            if radio_en:
+                
+                try:
+                    radio_en.click()
+                    time.sleep(random.choice(range(1,4)))
+                    # check that the reviews updated to English only; note: radio button text is like "English (3,122)"
+                    n_eng_reviews = int(re.search(r'\d+', radio_en.text.replace(',','')).group(0))
+                    print(f'selected reviews in English - {n_eng_reviews} reviews available')
+                    # is this the same as in the review block header? text here is supposed ot be like "1 - 10 of 3,122 reviews"
+                    el = self.driver.find_element_by_css_selector('div[data-contextchoice="DETAIL"]>div.pagination-details').text.replace(',','')
+                    n_reviews_hdr = int(re.search(r'(?<=of)\s+\d+', el).group(0).strip())
+                    if n_eng_reviews != n_reviews_hdr:
+                        print(f'warning: expected {n_eng_reviews} English reviews but see {n_reviews_hdr} in the header!')
+                except:
+                    print('can\'t click the English radio button!')
             
             # look at the attraction ranking tagline
             ranking_tag = self.driver.find_element_by_css_selector('span.header_popularity.popIndexValidation').text.strip()
@@ -991,11 +1104,35 @@ class Tareviews:
                 # on the very last page buttons previous and next are visible but the next button is disabled (not ckickable)
                 if 'disabled' not in next_button.get_attribute('class'):
                     
-                    next_button.click()
-                    sc = random.choice(range(3,7))
-                    print(f'clicked NEXT. waiting {sc} seconds...')
-                    time.sleep(sc)
-                    
+                    try:
+                        next_button.click()
+                        sc = random.choice(range(3,7))
+                        time.sleep(sc)
+                    except:
+                        print('can\'t click next, switching to direct url for the next page..')
+                        
+                        current_url = self.driver.current_url 
+                        print('current_url=',current_url)
+                        
+                        # there are 10 reviews on each full page and urls look like this:
+                        # 
+                        # p2: https://www.tripadvisor.com.au/Attraction_Review-g255093-d270480-Reviews-or10-Adelaide_Central_Market-Adelaide_Greater_Adelaide_South_Australia.html
+                        # p3: https://www.tripadvisor.com.au/Attraction_Review-g255093-d270480-Reviews-or20-Adelaide_Central_Market-Adelaide_Greater_Adelaide_South_Australia.html
+                        
+                        new_review_page_url = None
+                        
+                        offset_ = None
+                               
+                        try:
+                            offset_ = re.search(r'(?<=or)\d+(?=\-)', current_url).group(0)
+                            print('offset_=',offset_)
+                        except:
+                               print('no offset!')
+                        if offset_:
+                            new_review_page_url = current_url.replace(f'-or{offset_}-', f'-or{str(int(offset_) + 10)}-')
+                            print('new_review_page_url=',new_review_page_url)
+                            self.driver.get(new_review_page_url)
+    
                 else:
                     
                     print(f'last page. collected {len(cids)}/{a.reviews} reviews')
@@ -1026,13 +1163,12 @@ class Tareviews:
         
 
 
-# In[9]:
+# In[ ]:
 
 
 if __name__ == '__main__':
     
     ta = Tareviews(save_every=30) \
-            .get_attrs_info(location='Melbourne') \
-            .get_attrs_about_and_address() \
+            .get_attrs_info(location='Melbourne', use_local=True) \
             .get_users_and_reviews()
 
