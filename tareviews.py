@@ -374,7 +374,7 @@ class Tareviews:
 		
 		self.save_every = save_every
 		
-		  def get_attr_info(self, attr_item):
+def get_attr_info(self, attr_item):
 		
 		"""
 		collects basic attraction information for A SINGLE ATTRACTION from the attraction list (NOT on individual attraction pages!)
