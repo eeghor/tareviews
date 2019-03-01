@@ -10,6 +10,7 @@ class Attraction:
         self.address_ = None
         self.reviews_ = 0
         self.rating_ = 0
+        self.stars_ = None
         self.cat_ = []
         self.id_ = None
     
@@ -100,6 +101,15 @@ class Attraction:
     def rating(self, s):
         self.rating_ = s
 
+    @property
+    def stars(self):
+        return self.stars_
+    
+    @stars.setter
+    def stars(self, s):
+        if isinstance(s, str) and s.strip():
+            self.stars_ = s
+
     def from_dict(self, dict_):
         
         self.name = dict_.get('name', None)
@@ -110,6 +120,7 @@ class Attraction:
         self.address = dict_.get('address', None)
         self.reviews = dict_.get('reviews', None)
         self.rating = dict_.get('rating', None)
+        self.stars = dict_.get('stars', None)
         self.cat = dict_.get('cat', None)
         self.attr_id = dict_.get('id', None)
         
@@ -125,5 +136,6 @@ class Attraction:
                 'address': self.address_,
                 'reviews': self.reviews_,
                 'rating': self.rating_,
+                'stars': self.stars_,
                 'cat': self.cat_,
                 'id': self.id_}
